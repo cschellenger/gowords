@@ -37,14 +37,19 @@ func (g *Game) RenderGuess() bool {
 	for _, letter := range g.Word {
 		letterCount[string(letter)]++
 	}
+	// find the exact matches first
 	for i, letter := range guess {
-		if letterCount[string(letter)] > 0 {
+		if string(letter) == string(g.Word[i]) {
 			letterCount[string(letter)]--
-			if string(letter) == string(g.Word[i]) {
-				fmt.Print(aurora.BrightGreen(string(letter) + " "))
-			} else {
-				fmt.Print(aurora.BrightYellow(string(letter) + " "))
-			}
+		}
+	}
+	// print the word with colors
+	for i, letter := range guess {
+		if string(letter) == string(g.Word[i]) {
+			fmt.Print(aurora.BrightGreen(string(letter) + " "))
+		} else if letterCount[string(letter)] > 0 {
+			letterCount[string(letter)]--
+			fmt.Print(aurora.BrightYellow(string(letter) + " "))
 		} else {
 			fmt.Print(aurora.BrightRed(string(letter) + " "))
 		}
