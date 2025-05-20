@@ -98,7 +98,7 @@ func main() {
 	}
 	if !won {
 		fmt.Print(aurora.BrightRed("You lost! The word was: "))
-		fmt.Print(aurora.BrightGreen(game.Word))
+		fmt.Println(aurora.BrightGreen(game.Word))
 	} else {
 		fmt.Println(aurora.Sprintf(aurora.BrightGreen("You won with %s attempts left!\n"), aurora.BrightRed(fmt.Sprint(game.Attempts))))
 	}
