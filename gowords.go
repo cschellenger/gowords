@@ -61,7 +61,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    wordOptions := strings.Split(string(content), "\n")
+    wordOptions := strings.Split(strings.ToUpper(string(content)), "\n")
 	wordsMap := make(map[string]bool)
 	for _, word := range wordOptions {
 		wordsMap[word] = true
