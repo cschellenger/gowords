@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"math/rand"
-	"github.com/logrusorgru/aurora/v4"
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 type Game struct {
@@ -14,25 +15,19 @@ type Game struct {
 	Word string
 	Guesses []string
 	Attempts int
+	Won bool
 }
 
-func (g *Game) ReadGuess() {
-	var guess string
-	for {
-		fmt.Scanln(&guess)
-		guess = strings.ToUpper(guess)
-		if g.Words[guess] {
-			break
-		} else {
-			fmt.Print(aurora.BrightRed("Not a valid word! Try again: "))
-		}
-	}
-	g.Guesses = append(g.Guesses, guess)
-	g.Attempts--
-}
 
-func (g *Game) RenderGuess() bool {
+func (g *Game) RenderGuess() (string, error) {
 	guess := g.Guesses[len(g.Guesses)-1]
+	if g.Words[guess] == false {
+		return "", fmt.Errorf("Invalid word: %s", guess)
+	}
+	if g.Attempts <= 0 {
+		return "", fmt.Errorf("No attempts left")
+	}
+	g.Attempts--
 	letterCount := make(map[string]int)
 	for _, letter := range g.Word {
 		letterCount[string(letter)]++
@@ -44,22 +39,21 @@ func (g *Game) RenderGuess() bool {
 		}
 	}
 	// print the word with colors
+	rendered := ""
 	for i, letter := range guess {
 		if string(letter) == string(g.Word[i]) {
-			fmt.Print(aurora.BrightGreen(string(letter) + " "))
+			rendered += "[green]" + string(letter) + " "
 		} else if letterCount[string(letter)] > 0 {
 			letterCount[string(letter)]--
-			fmt.Print(aurora.BrightYellow(string(letter) + " "))
+			rendered += "[yellow]" + string(letter) + " "
 		} else {
-			fmt.Print(aurora.BrightRed(string(letter) + " "))
+			rendered += "[red]" + string(letter) + " "
 		}
 	}
-	fmt.Println()
-	if guess == g.Word {
-		return true
-	} else {
-		return false
+	if g.Word == guess {
+		g.Won = true
 	}
+	return rendered, nil
 }
 
 func main() {
@@ -74,12 +68,6 @@ func main() {
 	}
 	wordIndex := rand.Intn(len(wordOptions))
 	chosen := wordOptions[wordIndex]
-	fmt.Println(aurora.BgBlack(aurora.White("Guess the word!")))
-
-	for _ = range(len(chosen)) {
-		fmt.Print(aurora.BrightRed("_ "))
-	}
-
 	game := Game{
 		Words: wordsMap,
 		Word: chosen,
@@ -87,19 +75,48 @@ func main() {
 		Attempts: 6,
 	}
 
-	fmt.Println()
-
-	won := false
-	for game.Attempts > 0 && !won {
-		game.ReadGuess()
-		if game.RenderGuess() {
-			won = true
+	app := tview.NewApplication()
+	form := tview.NewForm().
+		AddTextView("", "", 20, 6, true, false).
+		AddInputField("", "", 20, nil, nil).
+		AddButton("Quit", func() {
+			app.Stop()
+		})
+	textView := form.GetFormItem(0).(*tview.TextView)
+	inputField := form.GetFormItem(1).(*tview.InputField)
+	inputField.SetAcceptanceFunc(func(text string, lastChar rune) bool {
+		if game.Attempts <= 0 || game.Won {
+			return false
 		}
-	}
-	if !won {
-		fmt.Print(aurora.BrightRed("You lost! The word was: "))
-		fmt.Println(aurora.BrightGreen(game.Word))
-	} else {
-		fmt.Println(aurora.Sprintf(aurora.BrightGreen("You won with %s attempts left!\n"), aurora.BrightRed(fmt.Sprint(game.Attempts))))
+		return len(text) <= len(game.Word)
+	})
+	inputField.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyEnter {
+			guess := strings.ToUpper(inputField.GetText())
+			game.Guesses = append(game.Guesses, guess)
+			rendered, err := game.RenderGuess()
+			inputField.SetText("")
+			if err == nil {
+				textView.SetText(textView.GetText(false) + "\n" + rendered)
+			}
+			if game.Won {
+				inputField.SetDisabled(true)
+				form.AddTextView("", "You won!", 20, 1, true, false)
+			} else if game.Attempts <= 0 {
+				inputField.SetDisabled(true)
+				form.AddTextView("", "You lost! The word was: " + game.Word, 40, 1, true, false)
+			} else {	
+				go func() {
+					app.QueueUpdateDraw(func() {
+						app.SetFocus(inputField)
+					})
+				}()
+			}
+		}
+	})
+
+	form.SetBorder(true).SetTitle("Go Words").SetTitleAlign(tview.AlignLeft)
+	if err := app.SetRoot(form, true).EnableMouse(true).Run(); err != nil {
+		panic(err)
 	}
 }
