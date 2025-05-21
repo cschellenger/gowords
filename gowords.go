@@ -1,23 +1,22 @@
 package main
 
 import (
-	"log"
-	"os"
 	"fmt"
-	"strings"
-	"math/rand"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"log"
+	"math/rand"
+	"os"
+	"strings"
 )
 
 type Game struct {
-	Words map[string]bool
-	Word string
-	Guesses []string
+	Words    map[string]bool
+	Word     string
+	Guesses  []string
 	Attempts int
-	Won bool
+	Won      bool
 }
-
 
 func (g *Game) RenderGuess() (string, error) {
 	guess := g.Guesses[len(g.Guesses)-1]
@@ -56,12 +55,46 @@ func (g *Game) RenderGuess() (string, error) {
 	return rendered, nil
 }
 
+func (g *Game) RenderLetters() string {
+	// print the letters with colors
+	rendered := ""
+	letters := make(map[string]string)
+	for _, guess := range g.Guesses {
+		for i, guessLetter := range guess {
+			if string(g.Word[i]) == string(guessLetter) {
+				letters[string(guessLetter)] = "[green]"
+			}
+			for _, wordLetter := range g.Word {
+				if string(guessLetter) == string(wordLetter) {
+					if letters[string(guessLetter)] == "" {
+						letters[string(guessLetter)] = "[yellow]"
+					}
+				}
+			}
+			if letters[string(guessLetter)] == "" {
+				letters[string(guessLetter)] = "[red]"
+			}
+		}
+	}
+	for _, l := range "QWERTYUIOP\nASDFGHJKL\nZXCVBNM\n" {
+		if l == '\n' {
+			rendered += "\n"
+		} else {
+			if letters[string(l)] == "" {
+				letters[string(l)] = "[white]"
+			}
+			rendered += letters[string(l)] + string(l) + " "
+		}
+	}
+	return rendered
+}
+
 func main() {
 	content, err := os.ReadFile("words.txt")
-    if err != nil {
-        log.Fatal(err)
-    }
-    wordOptions := strings.Split(strings.ToUpper(string(content)), "\n")
+	if err != nil {
+		log.Fatal(err)
+	}
+	wordOptions := strings.Split(strings.ToUpper(string(content)), "\n")
 	wordsMap := make(map[string]bool)
 	for _, word := range wordOptions {
 		wordsMap[word] = true
@@ -69,27 +102,51 @@ func main() {
 	wordIndex := rand.Intn(len(wordOptions))
 	chosen := wordOptions[wordIndex]
 	game := Game{
-		Words: wordsMap,
-		Word: chosen,
-		Guesses: []string{},
+		Words:    wordsMap,
+		Word:     chosen,
+		Guesses:  []string{},
 		Attempts: 6,
 	}
 
 	app := tview.NewApplication()
-	form := tview.NewForm().
-		AddTextView("", "", 20, 6, true, false).
-		AddInputField("", "", 20, nil, nil).
-		AddButton("Quit", func() {
-			app.Stop()
-		})
-	textView := form.GetFormItem(0).(*tview.TextView)
-	inputField := form.GetFormItem(1).(*tview.InputField)
+	inputField := tview.NewInputField().SetFieldWidth(10)
 	inputField.SetAcceptanceFunc(func(text string, lastChar rune) bool {
 		if game.Attempts <= 0 || game.Won {
 			return false
 		}
 		return len(text) <= len(game.Word)
 	})
+	guessesView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetSize(6, 20).
+		SetTextAlign(tview.AlignLeft)
+
+	lettersView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetSize(6, 20).
+		SetTextAlign(tview.AlignCenter).
+		SetText(game.RenderLetters())
+
+	messageView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetSize(1, 40).
+		SetTextAlign(tview.AlignLeft)
+
+	quitButton := tview.NewButton("Quit")
+	quitButton.SetSelectedFunc(func() {
+		app.Stop()
+	})
+
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(tview.NewFlex().
+			SetDirection(tview.FlexColumn).
+			AddItem(guessesView, 0, 1, false).
+			AddItem(lettersView, 0, 1, false), 0, 4, false).
+		AddItem(inputField, 0, 1, true).
+		AddItem(messageView, 0, 1, false).
+		AddItem(quitButton, 1, 1, false)
+
 	inputField.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
 			guess := strings.ToUpper(inputField.GetText())
@@ -97,26 +154,29 @@ func main() {
 			rendered, err := game.RenderGuess()
 			inputField.SetText("")
 			if err == nil {
-				textView.SetText(textView.GetText(false) + "\n" + rendered)
+				guessesView.SetText(guessesView.GetText(false) + "\n" + rendered)
+				messageView.SetText("")
+				lettersView.SetText(game.RenderLetters())
+			} else {
+				messageView.SetText(err.Error())
 			}
 			if game.Won {
 				inputField.SetDisabled(true)
-				form.AddTextView("", "You won!", 20, 1, true, false)
+				messageView.SetText("[green]You won! The word was: " + game.Word)
+				app.SetFocus(quitButton)
 			} else if game.Attempts <= 0 {
 				inputField.SetDisabled(true)
-				form.AddTextView("", "You lost! The word was: " + game.Word, 40, 1, true, false)
-			} else {	
-				go func() {
-					app.QueueUpdateDraw(func() {
-						app.SetFocus(inputField)
-					})
-				}()
+				messageView.SetText("[red]You lost! The word was: " + game.Word)
+				app.SetFocus(quitButton)
+			} else {
+				app.SetFocus(inputField)
 			}
+		} else if key == tcell.KeyEscape || key == tcell.KeyTab {
+			app.SetFocus(quitButton)
 		}
 	})
 
-	form.SetBorder(true).SetTitle("Go Words").SetTitleAlign(tview.AlignLeft)
-	if err := app.SetRoot(form, true).EnableMouse(true).Run(); err != nil {
+	if err := app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 }
