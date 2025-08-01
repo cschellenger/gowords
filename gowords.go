@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
 	"log"
 	"math/rand"
 	"os"
 	"strings"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 type Game struct {
@@ -148,7 +149,8 @@ func main() {
 		AddItem(quitButton, 1, 1, false)
 
 	inputField.SetDoneFunc(func(key tcell.Key) {
-		if key == tcell.KeyEnter {
+		switch key {
+		case tcell.KeyEnter:
 			guess := strings.ToUpper(inputField.GetText())
 			game.Guesses = append(game.Guesses, guess)
 			rendered, err := game.RenderGuess()
@@ -171,7 +173,7 @@ func main() {
 			} else {
 				app.SetFocus(inputField)
 			}
-		} else if key == tcell.KeyEscape || key == tcell.KeyTab {
+		case tcell.KeyEscape, tcell.KeyTab:
 			app.SetFocus(quitButton)
 		}
 	})
