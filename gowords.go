@@ -12,20 +12,20 @@ import (
 )
 
 type Game struct {
-	Words    map[string]bool
-	Word     string
-	Guesses  []string
-	Attempts int
-	Won      bool
+	PossibleWords map[string]bool
+	Word          string
+	Guesses       []string
+	Attempts      int
+	Won           bool
 }
 
 func (g *Game) RenderGuess() (string, error) {
 	guess := g.Guesses[len(g.Guesses)-1]
-	if g.Words[guess] == false {
-		return "", fmt.Errorf("Invalid word: %s", guess)
+	if !g.PossibleWords[guess] {
+		return "", fmt.Errorf("invalid word: %s", guess)
 	}
 	if g.Attempts <= 0 {
-		return "", fmt.Errorf("No attempts left")
+		return "", fmt.Errorf("no attempts left")
 	}
 	g.Attempts--
 	letterCount := make(map[string]int)
@@ -90,24 +90,7 @@ func (g *Game) RenderLetters() string {
 	return rendered
 }
 
-func main() {
-	content, err := os.ReadFile("words.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	wordOptions := strings.Split(strings.ToUpper(string(content)), "\n")
-	wordsMap := make(map[string]bool)
-	for _, word := range wordOptions {
-		wordsMap[word] = true
-	}
-	wordIndex := rand.Intn(len(wordOptions))
-	chosen := wordOptions[wordIndex]
-	game := Game{
-		Words:    wordsMap,
-		Word:     chosen,
-		Guesses:  []string{},
-		Attempts: 6,
-	}
+func playGame(game Game) {
 
 	app := tview.NewApplication()
 	inputField := tview.NewInputField().SetFieldWidth(10)
@@ -181,4 +164,25 @@ func main() {
 	if err := app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func main() {
+	content, err := os.ReadFile("words.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	wordOptions := strings.Split(strings.ToUpper(string(content)), "\n")
+	wordsMap := make(map[string]bool)
+	for _, word := range wordOptions {
+		wordsMap[word] = true
+	}
+	wordIndex := rand.Intn(len(wordOptions))
+	chosen := wordOptions[wordIndex]
+	game := Game{
+		PossibleWords: wordsMap,
+		Word:          chosen,
+		Guesses:       []string{},
+		Attempts:      6,
+	}
+	playGame(game)
 }
