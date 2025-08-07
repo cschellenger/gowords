@@ -1,6 +1,8 @@
 package main
 
 import (
+	_ "embed"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -10,6 +12,12 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+//go:embed valid-words.txt
+var validWords []byte
+
+//go:embed words.txt
+var choiceWords []byte
 
 type Game struct {
 	PossibleWords map[string]bool
@@ -167,22 +175,39 @@ func playGame(game Game) {
 }
 
 func main() {
-	content, err := os.ReadFile("words.txt")
-	if err != nil {
-		log.Fatal(err)
+	var guesses = flag.Int("guesses", 6, "Number of guesses allowed")
+	var validWordsFile = flag.String("words-valid", "", "List of valid words you can guess from")
+	var choiceWordsFile = flag.String("words-game", "", "List of words that might be chosen as the word you must guess")
+	flag.Parse()
+	var err error
+
+	if *validWordsFile != "" {
+		validWords, err = os.ReadFile(*validWordsFile)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	wordOptions := strings.Split(strings.ToUpper(string(content)), "\n")
+	if *choiceWordsFile != "" {
+		choiceWords, err = os.ReadFile(*choiceWordsFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	choiceOptions := strings.Split(strings.ToUpper(string(choiceWords)), "\n")
+	validOptions := strings.Split(strings.ToUpper(string(validWords)), "\n")
+	// map for fast lookup of whether a guess is valid or not
 	wordsMap := make(map[string]bool)
-	for _, word := range wordOptions {
+	for _, word := range validOptions {
 		wordsMap[word] = true
 	}
-	wordIndex := rand.Intn(len(wordOptions))
-	chosen := wordOptions[wordIndex]
+	wordIndex := rand.Intn(len(choiceOptions))
+	chosen := choiceOptions[wordIndex]
 	game := Game{
 		PossibleWords: wordsMap,
 		Word:          chosen,
 		Guesses:       []string{},
-		Attempts:      6,
+		Attempts:      *guesses,
 	}
 	playGame(game)
 }
